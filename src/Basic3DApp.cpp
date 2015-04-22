@@ -37,10 +37,12 @@ void Basic3DApp::prepareSettings(cinder::app::AppBasic::Settings *settings){
 void Basic3DApp::setup()
 {
     gl::enableAlphaBlending();
+        gl::enableDepthRead();
+    gl::enableDepthWrite();
     
     gl::Fbo::Format format;
     format.setColorInternalFormat(GL_RGBA32F_ARB );
-    mFbo = gl::Fbo(800, 800, format);
+    mFbo = gl::Fbo(getWindowWidth()/2, getWindowHeight()/2, format);
     mFbo.bindFramebuffer();
     gl::clear();
     mFbo.unbindFramebuffer();
@@ -52,8 +54,8 @@ void Basic3DApp::setup()
     gl::clear();
     
     //params
-    smallCubeSize = 5.0;
-    largeCubeSize = 15.0;
+    smallCubeSize = 20.0;
+    largeCubeSize = 80.0;
     numCubes = 10;
     
     mParams = params::InterfaceGl(getWindow(), "Parameters", Vec2i(200,100));
@@ -68,7 +70,7 @@ void Basic3DApp::mouseDown( MouseEvent event )
 
 void Basic3DApp::resize(){
     mFbo.reset();
-    mFbo = gl::Fbo(getWindowWidth(), getWindowHeight());
+    mFbo = gl::Fbo(getWindowWidth()/2, getWindowHeight()/2);
 }
 
 void Basic3DApp::update()
@@ -78,17 +80,20 @@ void Basic3DApp::update()
 
 void Basic3DApp::draw()
 {
+    gl::clear(ColorAf(1.0, 0.0, 0.0, 0.0));
+    
     mFbo.bindFramebuffer();
-    gl::clear(ColorAf(Color::black(), 0.0));
-    gl::enableDepthRead();
+    gl::setViewport( mFbo.getBounds() );
+    gl::clear(Color(Color::black()));
     gl::pushModelView();
-    gl::translate(Vec3f(getWindowWidth()/2, getWindowHeight()/2, 0));
+    //gl origin is in the lower left
+    gl::translate(Vec3f(mFbo.getWidth(), mFbo.getHeight(), 0));
 
     //draw a ring of cubes
     for(int i = 0; i < numCubes; i++){
         gl::pushModelView();
         gl::rotate(Vec3f::zAxis() * (currentRotation.z + 360.f/ numCubes * i));
-        gl::translate(Vec3f(200, 0, 0));
+        gl::translate(Vec3f(100, 0, 0));
         gl::color(Color(1.0, 1.0, 1.0));
         gl::drawCube(Vec3f::zero(), Vec3f(smallCubeSize, smallCubeSize, smallCubeSize));
         gl::popModelView();
@@ -99,15 +104,9 @@ void Basic3DApp::draw()
     gl::popModelView();
     mFbo.unbindFramebuffer();
     
-    gl::disableDepthRead();
-    gl::draw(mFbo.getTexture(), Vec2f(0, 0));
+    gl::setViewport( getWindowBounds());
+    gl::draw(mFbo.getTexture(), Vec2f(getWindowWidth()/4, getWindowHeight()/4));
     
-    gl::color(ColorAf(Color::white(), 0.6));
-    float leftEdge = getWindowWidth()/2 + (sin(getElapsedSeconds()) * getWindowWidth()/2);
-    gl::drawSolidRect(Rectf(Vec2f(leftEdge, 50.0), Vec2f(leftEdge + 50, 100.0)));
-    //
-    gl::color(ColorAf(0.0, 0.0, 0.0, 0.19));
-    gl::drawSolidRect(getWindowBounds());
     mParams.draw();
 }
 

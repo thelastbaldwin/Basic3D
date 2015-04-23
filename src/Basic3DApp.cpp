@@ -1,8 +1,10 @@
 #include "cinder/app/AppNative.h"
 #include "cinder/gl/Fbo.h"
 #include "cinder/gl/gl.h"
+#include "cinder/gl/GlslProg.h"
 #include "cinder/Camera.h"
 #include "cinder/params/Params.h"
+#include "Resources.h"
 
 using namespace ci;
 using namespace ci::app;
@@ -20,8 +22,11 @@ class Basic3DApp : public AppNative {
     int numCubes;
     float largeCubeSize;
     float radius;
+    float opacity;
     
     CameraPersp	mCam;
+    
+    gl::GlslProgRef mShader;
   public:
 	void setup();
     void prepareSettings(Settings* settings);
@@ -39,8 +44,10 @@ void Basic3DApp::prepareSettings(cinder::app::AppBasic::Settings *settings){
 
 void Basic3DApp::setup()
 {
+    console() << "Begin setup" << endl;
+    
     gl::enableAlphaBlending();
-        gl::enableDepthRead();
+    gl::enableDepthRead();
     gl::enableDepthWrite();
     
     
@@ -67,12 +74,26 @@ void Basic3DApp::setup()
     largeCubeSize = 80.0;
     numCubes = 10;
     radius = 300;
+    opacity = 0.01;
     
-    mParams = params::InterfaceGl(getWindow(), "Parameters", Vec2i(200,100));
+    mParams = params::InterfaceGl(getWindow(), "Parameters", Vec2i(200,120));
     mParams.addParam( "Small Cube Size", &smallCubeSize, "min=0.1 max=20.5 step=0.5" );
     mParams.addParam( "Large Cube Size", &largeCubeSize, "min=10.0 max=100.0 step=0.5" );
     mParams.addParam( "numCubes", &numCubes, "min=0 max=10" );
     mParams.addParam( "radius", &radius, "min=100 max=800");
+    mParams.addParam("opacity", &opacity, "min=0 max=1.0 step=0.05");
+    
+    //shader setup
+    try {
+        mShader = gl::GlslProg::create( loadResource(RES_VERT_GLSL), loadResource(RES_FRAG_GLSL));
+    }
+    catch( gl::GlslProgCompileExc &exc ) {
+        console() << "Shader compile error: " << std::endl;
+        console() << exc.what();
+    }
+    catch( ... ) {
+        console() << "Unable to load shader" << std::endl;
+    }
 }
 
 void Basic3DApp::mouseDown( MouseEvent event )
@@ -93,10 +114,10 @@ void Basic3DApp::update()
 void Basic3DApp::draw()
 {
     //clear the buffer
-    gl::clear(ColorAf(1.0, 1.0, 0.0, 0.1));
+    gl::clear();
     
     mFbo.bindFramebuffer();
-    gl::setViewport( mFbo.getBounds() );
+    gl::setViewport( mFbo.getBounds());
     gl::clear(ColorAf(Color::black(), 0.0));
 //    gl::enableWireframe();
     gl::pushModelView();
@@ -121,9 +142,14 @@ void Basic3DApp::draw()
     gl::setViewport( getWindowBounds());
     
     mFbo.getTexture().enableAndBind();
+    if(mShader){
+        mShader->bind();
+        //    mShader->uniform( "tex0", 0 );
+        mShader->uniform("opacity", opacity);
+    }
     gl::pushModelView();
     gl::translate(getWindowWidth()/2 - mFbo.getWidth()/2, getWindowHeight()/2 - mFbo.getHeight()/2);
-    for(int i = 0; i < 10; ++i){
+    for(int i = 10; i >=0 ; --i){
         gl::pushModelView();
         gl::translate(Vec3f(0, 0, i * -100));
         gl::drawSolidRect(Rectf(Vec2f(0, 0), Vec2f(mFbo.getWidth(), mFbo.getHeight())));
@@ -132,6 +158,7 @@ void Basic3DApp::draw()
     
     gl::popModelView();
     mFbo.getTexture().unbind();
+    mShader->unbind();
     
     mParams.draw();
 }

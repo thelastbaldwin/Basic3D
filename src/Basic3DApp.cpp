@@ -74,7 +74,7 @@ void Basic3DApp::setup()
     largeCubeSize = 80.0;
     numCubes = 10;
     radius = 300;
-    opacity = 0.01;
+    opacity = 0.31;
     
     mParams = params::InterfaceGl(getWindow(), "Parameters", Vec2i(200,120));
     mParams.addParam( "Small Cube Size", &smallCubeSize, "min=0.1 max=20.5 step=0.5" );
@@ -144,7 +144,7 @@ void Basic3DApp::draw()
     mFbo.getTexture().enableAndBind();
     if(mShader){
         mShader->bind();
-        //    mShader->uniform( "tex0", 0 );
+            mShader->uniform( "tex0", 0 );
         mShader->uniform("opacity", opacity);
     }
     gl::pushModelView();

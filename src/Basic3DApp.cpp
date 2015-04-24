@@ -30,8 +30,10 @@ class Basic3DApp : public AppNative {
     int currentFrame;
     
     CameraPersp	mCam;
-    const static int NUM_TEXTURES = 20;
+    const static int NUM_TEXTURES = 10;
+    const static int MAX_SIZE = 30;
     deque<ci::gl::Texture> mFrames;
+    gl::Fbo::Format format;
     gl::GlslProgRef mShader;
   public:
 	void setup();
@@ -39,14 +41,13 @@ class Basic3DApp : public AppNative {
 	void mouseDown( MouseEvent event );
 	void update();
 	void draw();
-    void bindAllTextures(deque<ci::gl::Texture>& textures);
-    void unbindAllTextures(deque<ci::gl::Texture>& textures);
 };
 
 void Basic3DApp::prepareSettings(cinder::app::AppBasic::Settings *settings){
     settings->setWindowPos(50, 50);
     settings->setWindowSize(800, 800);
     settings->setFrameRate(60);
+    settings->setResizable(false);
 }
 
 void Basic3DApp::setup()
@@ -58,12 +59,18 @@ void Basic3DApp::setup()
     gl::enableDepthWrite();
     
     
-    gl::Fbo::Format format;
-    format.setColorInternalFormat(GL_RGBA32F_ARB );
+    format.setColorInternalFormat(GL_RGBA);
+    
     mFbo = gl::Fbo(getWindowWidth(), getWindowHeight(), format);
     mFbo.bindFramebuffer();
     gl::clear();
     mFbo.unbindFramebuffer();
+    
+    mFrames.resize(NUM_TEXTURES);
+    for(int i = 0; i < NUM_TEXTURES; ++i){
+        mFrames[i] = mFbo.getTexture().weakClone();
+    }
+
     
     currentRotation = Vec3f::zero();
     rotationIncrement = Vec3f(0.1f, 0.2f, 0.3f);
@@ -80,8 +87,8 @@ void Basic3DApp::setup()
     numCubes = 10;
     radius = 384;
     opacity = 0.31;
-    canvasOffset = 100;
-    frameOffset = 20;
+    canvasOffset = 300;
+    frameOffset = 5;
     
     mParams = params::InterfaceGl(getWindow(), "Parameters", Vec2i(200,140));
     mParams.addParam( "Small Cube Size", &smallCubeSize, "min=0.1 max=20.5 step=0.5" );
@@ -90,7 +97,7 @@ void Basic3DApp::setup()
     mParams.addParam( "radius", &radius, "min=100 max=800");
     mParams.addParam("opacity", &opacity, "min=0 max=1.0 step=0.05");
     mParams.addParam("offset", &canvasOffset, "min=10 max=500 step=5");
-    mParams.addParam("frameOffset", &frameOffset, "min=1 max=20 step=1");
+    mParams.addParam("frameOffset", &frameOffset, "min=2 max=20 step=1");
     
     //shader setup
     try {
@@ -103,109 +110,68 @@ void Basic3DApp::setup()
     catch( ... ) {
         console() << "Unable to load shader" << std::endl;
     }
-    
-    //texture deque setup
-    mFrames.resize(NUM_TEXTURES);   
-    for(int i = 0; i < NUM_TEXTURES; ++i){
-        mFrames[i] = ci::gl::Texture(getWindowWidth(), getWindowHeight());
-    }
 }
 
 void Basic3DApp::mouseDown( MouseEvent event )
 {
 }
 
-void Basic3DApp::bindAllTextures(deque<ci::gl::Texture> &textures){
-    stringstream ss;
-    string texLoc;
-    
-    for(int i = 0; i < textures.size(); ++i){
-        textures[i].enableAndBind();
-        ss << "tex" << i;
-        texLoc = ss.str();
-        mShader->uniform(texLoc, i);
-        ss.clear();
-        ss.str("");
-    }
-}
-
-void Basic3DApp::unbindAllTextures(deque<ci::gl::Texture> &textures){
-    for(auto tex: textures){
-        tex.unbind();
-    }
-}
-
 void Basic3DApp::update()
 {
     currentRotation += rotationIncrement;
+    // if the number of cached frames exceeds the max size, cut it down
+    if(mFrames.size() > MAX_SIZE){
+        mFrames.erase(mFrames.begin() + NUM_TEXTURES, mFrames.end());
+    }
 }
 
 void Basic3DApp::draw()
 {
     //clear the buffer
     gl::clear(Color::black());
-    
+
     mFbo.bindFramebuffer();
-    gl::setViewport( mFbo.getBounds());
     gl::clear(ColorAf(Color::black(), 0.0));
     gl::pushModelView();
-    gl::translate(Vec3f(mFbo.getWidth()/2, mFbo.getHeight()/2, 0));
+    gl::translate(Vec3f(getWindowWidth()/2, getWindowHeight()/2, 0));
 
     //draw a ring of cubes
     for(int i = 0; i < numCubes; i++){
         gl::pushModelView();
         gl::rotate(Vec3f::zAxis() * (currentRotation.z + 360.f/ numCubes * i));
-        gl::translate(Vec3f(radius, 0, 0));
+        gl::translate(Vec3f(radius + sin(getElapsedSeconds()) * 20, 0, 0));
         gl::color(Color(1.0, 1.0, 1.0));
         gl::drawCube(Vec3f::zero(), Vec3f(smallCubeSize, smallCubeSize, smallCubeSize));
         gl::popModelView();
     }
-    gl::color(Color(1.0, 1.0, 1.0));
-    gl::rotate(currentRotation);
-    gl::drawColorCube(Vec3f::zero(), Vec3f(largeCubeSize, largeCubeSize, largeCubeSize));
     gl::popModelView();
     mFbo.unbindFramebuffer();
     
-    //manage stack of textures
-    if(currentFrame % frameOffset == 0){
-        mFrames.push_front(gl::Texture(mFbo.getTexture()));
-        mFrames.pop_back();
-    }
-    ++currentFrame;
-    
-    gl::setViewport( getWindowBounds());
-    
+    //copy the texture using a Surface object
+//    Surface surf(mFbo.getTexture());
+//    mFrames.push_front(gl::Texture(surf));
    
-//    mFrames[0].bind();
-//     mFbo.getTexture().enableAndBind();
-    
-    
     gl::pushModelView();
-    gl::translate(getWindowWidth()/2 - mFbo.getWidth()/2, getWindowHeight()/2 - mFbo.getHeight()/2);
     for(int i = NUM_TEXTURES-1; i >= 0; --i){
         if(mShader){
-            mShader->bind();
             mFrames[i].enableAndBind();
+            mShader->bind();
             mShader->uniform("tex0", 0);
             mShader->uniform("opacity", opacity);
         }
         gl::pushModelView();
         gl::translate(Vec3f(0, 0, i * -canvasOffset));
-        gl::drawSolidRect(Rectf(Vec2f(0, 0), Vec2f(mFbo.getWidth(), mFbo.getHeight())));
+        gl::drawSolidRect(getWindowBounds());
         gl::popModelView();
         if(mShader){
             mFrames[i].unbind();
             mShader->unbind();
         }
     }
-    
     gl::popModelView();
-//    mFbo.getTexture().unbind();
-//    mFrames[0].unbind();
-//    unbindAllTextures(mFrames);
-//    mShader->unbind();
-    
     mParams.draw();
+    
+    console() << getAverageFps() << endl;
 }
 
 CINDER_APP_NATIVE( Basic3DApp, RendererGl )

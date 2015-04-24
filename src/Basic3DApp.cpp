@@ -1,3 +1,4 @@
+#include <deque>
 #include "cinder/app/AppNative.h"
 #include "cinder/gl/Fbo.h"
 #include "cinder/gl/gl.h"
@@ -16,6 +17,7 @@ class Basic3DApp : public AppNative {
     Vec3f rotationIncrement;
     Color c;
     gl::Fbo mFbo;
+    
     //parameters
     params::InterfaceGl mParams;
     float smallCubeSize;
@@ -25,7 +27,8 @@ class Basic3DApp : public AppNative {
     float opacity;
     
     CameraPersp	mCam;
-    
+    const static int NUM_TEXTURES = 10;
+    deque<ci::gl::Texture> mFrames;
     gl::GlslProgRef mShader;
   public:
 	void setup();
@@ -44,8 +47,6 @@ void Basic3DApp::prepareSettings(cinder::app::AppBasic::Settings *settings){
 
 void Basic3DApp::setup()
 {
-    console() << "Begin setup" << endl;
-    
     gl::enableAlphaBlending();
     gl::enableDepthRead();
     gl::enableDepthWrite();
@@ -60,8 +61,6 @@ void Basic3DApp::setup()
     
     currentRotation = Vec3f::zero();
     rotationIncrement = Vec3f(0.1f, 0.2f, 0.3f);
-//    glEnable(GL_LIGHTING);
-//    glEnable(GL_LIGHT0);
     gl::clear();
     
     //camera
@@ -73,7 +72,7 @@ void Basic3DApp::setup()
     smallCubeSize = 20.0;
     largeCubeSize = 80.0;
     numCubes = 10;
-    radius = 300;
+    radius = 400;
     opacity = 0.31;
     
     mParams = params::InterfaceGl(getWindow(), "Parameters", Vec2i(200,120));
@@ -94,6 +93,9 @@ void Basic3DApp::setup()
     catch( ... ) {
         console() << "Unable to load shader" << std::endl;
     }
+    
+    //texture deque setup
+    mFrames.resize(NUM_TEXTURES);
 }
 
 void Basic3DApp::mouseDown( MouseEvent event )
@@ -114,7 +116,7 @@ void Basic3DApp::update()
 void Basic3DApp::draw()
 {
     //clear the buffer
-    gl::clear();
+    gl::clear(Color::black());
     
     mFbo.bindFramebuffer();
     gl::setViewport( mFbo.getBounds());
@@ -137,19 +139,23 @@ void Basic3DApp::draw()
     gl::drawColorCube(Vec3f::zero(), Vec3f(largeCubeSize, largeCubeSize, largeCubeSize));
     gl::popModelView();
     mFbo.unbindFramebuffer();
-    //    gl::draw(mFbo.getTexture(), Vec2f(getWindowWidth()/4, getWindowHeight()/4));
+    
+    //manage stack of textures
+//    mFrames.push_front(mFbo.getTexture());
+//    mFrames.pop_back();
     
     gl::setViewport( getWindowBounds());
     
     mFbo.getTexture().enableAndBind();
+
     if(mShader){
         mShader->bind();
-            mShader->uniform( "tex0", 0 );
+        mShader->uniform("tex0", 0);
         mShader->uniform("opacity", opacity);
     }
     gl::pushModelView();
     gl::translate(getWindowWidth()/2 - mFbo.getWidth()/2, getWindowHeight()/2 - mFbo.getHeight()/2);
-    for(int i = 10; i >=0 ; --i){
+    for(int i = NUM_TEXTURES; i >= 0  ; --i){
         gl::pushModelView();
         gl::translate(Vec3f(0, 0, i * -100));
         gl::drawSolidRect(Rectf(Vec2f(0, 0), Vec2f(mFbo.getWidth(), mFbo.getHeight())));

@@ -30,8 +30,9 @@ class Basic3DApp : public AppNative {
     int currentFrame;
     
     CameraPersp	mCam;
-    const static int NUM_TEXTURES = 10;
-    const static int MAX_SIZE = 30;
+    const static int INTERVAL = 1;
+    const static int NUM_TEXTURES = 10 * INTERVAL;
+    const static int MAX_SIZE = NUM_TEXTURES * 2;
     deque<ci::gl::Texture> mFrames;
     gl::Fbo::Format format;
     gl::GlslProgRef mShader;
@@ -148,11 +149,12 @@ void Basic3DApp::draw()
     mFbo.unbindFramebuffer();
     
     //copy the texture using a Surface object
-//    Surface surf(mFbo.getTexture());
-//    mFrames.push_front(gl::Texture(surf));
+    Surface surf(mFbo.getTexture());
+    mFrames.push_front(gl::Texture(surf));
+//    mFrames.push_front(mFbo.getTexture().weakClone());
    
     gl::pushModelView();
-    for(int i = NUM_TEXTURES-1; i >= 0; --i){
+    for(int i = NUM_TEXTURES-1; i >= 0; i-=INTERVAL){
         if(mShader){
             mFrames[i].enableAndBind();
             mShader->bind();
@@ -160,7 +162,7 @@ void Basic3DApp::draw()
             mShader->uniform("opacity", opacity);
         }
         gl::pushModelView();
-        gl::translate(Vec3f(0, 0, i * -canvasOffset));
+        gl::translate(Vec3f(0, 0, i/INTERVAL * -canvasOffset));
         gl::drawSolidRect(getWindowBounds());
         gl::popModelView();
         if(mShader){
